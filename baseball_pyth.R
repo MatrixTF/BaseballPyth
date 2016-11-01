@@ -5,8 +5,8 @@
 #Original Pytahagorean Formula (created by Bill James): Win% = (Runs Scored)^2/[(Runs Scored)^2 + (Runs Allowed)^2]
 #Data: Lahman files for all Major League Baseball games from 1871-2015
 #https://www.kaggle.com/seanlahman/the-history-of-baseball
-#Goal: Minimum Variance ((RS)^x/[(RS)^x + (RA)^x])*Games - Wins
-#***********************************************************
+#Goal: Determine x by least squares analysis for: ((RS)^x/[(RS)^x + (RA)^x])*Games - Wins
+#*****************************************************************************************
 
 #Delete all objects
 rm(list=ls())
@@ -32,32 +32,34 @@ allteams <- within(allteams, {
 pyth <- function(data, x){
     datalength <- length(data)
     for(i in 1:length(x)){
+        #Add the residual squared values to the dataframe 
         data[,i+datalength] <- (((data$RS^x[i]/(data$RS^x[i] + data$RA^x[i]))*data$Games) - data$modWins)^2
         colnames(data)[i+datalength] <- paste("SSE_", x[i], sep="")
     }
-    results <- apply(data[,(1+datalength):length(data)], 2, sum)
+    results <- apply(data[,(1+datalength):length(data)], 2, sum) #sum all of residuals squared
     return(results)
 }
 
-#In the 19th century, schedules were unorganized and often .
+#In the 19th century, schedules were unorganized and teams were unbalanced.
 #Let's limit the scope to all years after the first World Series in 1903
 wsteams <- allteams[allteams$Year >= 1903,]
 numexp <- seq(1.6, 2.5, by=.01) #Test exponent values of 1.60 through 2.50 by .01
 comp <- pyth(allteams, numexp) #run the function with all team data and the test exponents
+minPoint <- c(numexp[which.min(comp)], comp[which.min(comp)])
+#Under the least squares approach, the optimal value of x is 1.85.
 
 plot(numexp, comp, 
-     main= "Baseball Pythagorean Formula: Least Squares Analysis ",
+     main= "Baseball Pythagorean Formula: Least Squares Analysis",
      xlab= "Exponent Value (x): RS^x/(RS^x+RA^x)",
      ylab= "Sum of Residuals Squared")
-
-minVar <- comp[comp == min(comp)]
-#Under the least squares approach, the optimal value of x is 1.85.
+points(minPoint[1], minPoint[2], col="red", pch=16, cex=1.3)
+text(minPoint[1], minPoint[2], "Min Point (x=1.85)", pos=3, cex=.7)
 
 #Nonlinear modeling shows a similar result.
 wsexp <- nls(WinPerc ~ I(RS^power/(RS^power+RA^power)), data=wsteams, start = list(power=1))
 
 #The best estimate for x is 1.8485.
-#An improved Pythagorean formula is:
+#The improved Pythagorean formula is:
 #     RS^1.8485
 #------------------
 #(RS^1.8485 + RA^1.8485)
@@ -75,7 +77,7 @@ fit_lm <- lm(WinPerc ~ RunDiff, data= wsteams)
 onemorewin <- (1/162)/fit_lm$coefficients[2] #9.388539
 #For one more expected win, a team should increase their run differential by approximately 9.4 runs.
 #This insight can drive strategy and offers General Managers a guide when dealing with possible transactions (trades, call ups, lineup manuevers, etc.)  
-.
+
 #How do the two models to predict win percentage compare to one another? Let's use AIC.
 aicmodel <- AIC(fit_lm, wsexp)
 #While the Pythagorean model is better, it is not overwhelmingly so.
